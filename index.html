@@ -1,0 +1,1444 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MYSTERYBOX - Detective Investigation Game</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        charcoal: '#121214',
+                        cardbg: '#1a1a1e',
+                        bordercolor: '#2a2a32',
+                        crimson: '#991b1b',
+                        crimsonhover: '#b91c1c',
+                        paper: '#f4f1ea',
+                        paperdark: '#e3decb'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Courier New', 'monospace'],
+                        serif: ['Georgia', 'serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0b0e;
+            color: #e5e7eb;
+            overflow-x: hidden;
+        }
+
+        .paper-texture {
+            background-color: #f4f1ea;
+            color: #2b2b2b;
+            background-image: radial-gradient(#dcd5c1 0.75px, transparent 0.75px);
+            background-size: 15px 15px;
+        }
+
+        .cork-board {
+            background-color: #2c221e;
+            background-image: radial-gradient(#3c2e28 1.5px, transparent 1.5px);
+            background-size: 24px 24px;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #121214;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2a2a32;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #991b1b;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        .pin {
+            width: 14px;
+            height: 14px;
+            background: #991b1b;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5), inset 0 2px 2px rgba(255,255,255,0.3);
+            position: absolute;
+            top: -7px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-red-900 selection:text-white">
+
+    <!-- Navigation / Header -->
+    <header class="border-b border-bordercolor bg-charcoal/90 backdrop-blur sticky top-0 z-50 px-4 lg:px-8 py-3 flex items-center justify-between">
+        <div class="flex items-center space-x-3 cursor-pointer" onclick="app.navigateTo('landing')">
+            <div class="bg-red-900/30 border border-red-800 text-red-500 p-2 rounded-lg flex items-center justify-center">
+                <i class="fa-solid fa-user-secret text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold tracking-wider text-lg text-white">MYSTERYBOX</h1>
+                <p class="text-xs text-neutral-400 font-mono">"Every clue has a secret."</p>
+            </div>
+        </div>
+
+        <div id="header-stats" class="hidden md:flex items-center space-x-6 text-sm font-mono text-neutral-300">
+            <div class="flex items-center space-x-2 bg-neutral-900 px-3 py-1.5 rounded-md border border-neutral-800">
+                <i class="fa-solid fa-award text-amber-500"></i>
+                <span>Rank: <strong id="stat-rank" class="text-white">Novice</strong></span>
+            </div>
+            <div class="flex items-center space-x-2 bg-neutral-900 px-3 py-1.5 rounded-md border border-neutral-800">
+                <i class="fa-solid fa-folder-open text-blue-500"></i>
+                <span>Solved: <strong id="stat-solved" class="text-white">0</strong>/3</span>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+            <button onclick="app.resetAllData()" title="Reset All Game Progress" class="text-xs px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white border border-neutral-800 rounded-md transition-colors">
+                <i class="fa-solid fa-rotate-right mr-1"></i> Reset Save
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container Area -->
+    <main id="app-container" class="flex-1 flex flex-col relative">
+        <!-- Views will be dynamically injected here -->
+    </main>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <!-- Modal Container -->
+    <div id="modal-container" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+        <div id="modal-content" class="bg-cardbg border border-bordercolor rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative animate-fade-in">
+            <!-- Dynamic Modal Content -->
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // GAME DATA & DATASETS (3 Full Cases)
+        // ==========================================
+        const GAME_DATA = {
+            cases: [
+                {
+                    id: "case-001",
+                    number: "CASE #001",
+                    title: "The Missing Necklace",
+                    subtitle: "A priceless diamond heirloom vanishes from a locked aristocratic study during a stormy evening gala.",
+                    difficulty: "Easy",
+                    difficultyColor: "text-emerald-400 bg-emerald-950/40 border-emerald-800",
+                    image: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=600&q=80",
+                    timeEst: "15-20 mins",
+                    status: "unsolved",
+                    culpritId: "suspect-002", // Lady Clara Sterling
+                    correctMotive: "Financial desperation due to secret gambling debts.",
+                    correctEvidence: "ev-003", // Pawnshop receipt
+                    description: "Lord Alistair Sterling hosted an exclusive high-society gala at Sterling Manor. Sometime between 10:00 PM and 11:30 PM during a blackout caused by the storm, the 'Star of Orion' diamond necklace was stolen from the study safe. Only family members and close staff knew the cipher.",
+                    progress: 0
+                },
+                {
+                    id: "case-002",
+                    number: "CASE #002",
+                    title: "The Midnight Disappearance",
+                    subtitle: "A brilliant software architect vanishes from his high-rise penthouse office leaving only an unfinished line of code.",
+                    difficulty: "Medium",
+                    difficultyColor: "text-amber-400 bg-amber-950/40 border-amber-800",
+                    image: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=600&q=80",
+                    timeEst: "25-30 mins",
+                    status: "unsolved",
+                    culpritId: "suspect-004", // Marcus Vance
+                    correctMotive: "Corporate espionage and stealing proprietary AI algorithms.",
+                    correctEvidence: "ev-006", // Flash drive log / encrypted email
+                    description: "Julian Vance, lead architect at Apex Cybernetics, was discovered missing from his secure 40th-floor lab at midnight. Security logs show no badge exit scans, yet his terminal was active until 11:50 PM. Was he kidnapped or did he flee?",
+                    progress: 0
+                },
+                {
+                    id: "case-003",
+                    number: "CASE #003",
+                    title: "The Locked Room",
+                    subtitle: "An eccentric art collector is found dead in his study with zero points of entry or exit. Poison or murder?",
+                    difficulty: "Hard",
+                    difficultyColor: "text-red-400 bg-red-950/40 border-red-800",
+                    image: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=600&q=80",
+                    timeEst: "35-45 mins",
+                    status: "unsolved",
+                    culpritId: "suspect-003", // Dr. Evelyn Reed
+                    correctMotive: "Revenge for stolen research attribution and academic fraud.",
+                    correctEvidence: "ev-008", // Toxicological lab report
+                    description: "Arthur Pendelton was locked inside his private antiquities library from the inside with heavy deadbolts. Windows were bolted shut against the snowstorm outside. When police forced the door, Arthur was slumped at his desk with a cup of laced tea.",
+                    progress: 0
+                }
+            ],
+
+            suspects: {
+                "case-001": [
+                    {
+                        id: "suspect-001",
+                        name: "Lord Alistair Sterling",
+                        age: 62,
+                        occupation: "Estate Owner / Victim's Husband",
+                        relation: "Husband of victim",
+                        avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80",
+                        alibi: "Claimed he was in the downstairs wine cellar inspecting vintage bottles from 9:45 PM to 11:15 PM.",
+                        personality: "Arrogant, dismissive of staff, fiercely protective of family honor.",
+                        suspicion: 35,
+                        interviews: [
+                            { q: "Where exactly were you during the blackout?", a: "I was in the east wing wine cellar searching for a 1982 Bordeaux for my guests. It is stone-walled; I heard nothing." },
+                            { q: "Who else knew the safe combination?", a: "Only myself and my late father. Clara—my wife—insisted she never knew it, though I have my doubts." },
+                            { q: "Did you notice anything unusual?", a: "The security cameras flickered right before the power cut. Someone tampered with the generator breaker outside." }
+                        ]
+                    },
+                    {
+                        id: "suspect-002",
+                        name: "Lady Clara Sterling",
+                        age: 58,
+                        occupation: "Socialite / Jewelry Collector",
+                        relation: "Wife of victim",
+                        avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80",
+                        alibi: "Stated she was in her dressing room comforting guests during the thunder storm.",
+                        personality: "Poised, elegant, but nervous when questioned about personal finances.",
+                        suspicion: 85,
+                        interviews: [
+                            { q: "Where were you at 10:30 PM?", a: "In my chambers. The lightning terrified me. My maid was with me until the lights went out." },
+                            { q: "Are you aware of any recent debts?", a: "We are Stirlings! We have generational wealth... though upkeep on this estate is astronomical." },
+                            { q: "Can anyone confirm your alibi?", a: "My personal maid, Beatrice, brought me chamomile tea at 10:15 PM." }
+                        ]
+                    },
+                    {
+                        id: "suspect-003",
+                        name: "Beatrice Thorne",
+                        age: 42,
+                        occupation: "Head Housekeeper",
+                        relation: "Employee of 15 years",
+                        avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80",
+                        alibi: "Was securing the ground floor windows and resetting emergency lanterns.",
+                        personality: "Diligent, observant, holding quiet resentment toward the family.",
+                        suspicion: 40,
+                        interviews: [
+                            { q: "Did you see anyone near the study?", a: "I saw someone in a dark velvet coat slipping down the corridor toward the service stairs around 11:00 PM." },
+                            { q: "How are relations with the Stirlings?", a: "They pay on time, but Lord Sterling is harsh. My daughter's medical bills have been hard to manage." },
+                            { q: "Did you notice the safe open?", a: "I only clean the exterior. But the keycard reader log was blinking red earlier that day." }
+                        ]
+                    },
+                    {
+                        id: "suspect-004",
+                        name: "Julian Vance (Guest)",
+                        age: 34,
+                        occupation: "Antique Art Dealer",
+                        relation: "Business associate",
+                        avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80",
+                        alibi: "Smoking a cigar on the covered terrace balcony despite the rain.",
+                        personality: "Charming, opportunistic, deeply knowledgeable in rare gems.",
+                        suspicion: 60,
+                        interviews: [
+                            { q: "Why were you on the terrace in a storm?", a: "A man needs solitude sometimes. The gallery inside was stifling." },
+                            { q: "Did you admire Lady Clara's necklace?", a: "Who hasn't? It is worth a small fortune on the black market. Museum quality." },
+                            { q: "Did you see anyone else outside?", a: "Only shadows against the conservatory glass. Someone carrying a heavy metal case." }
+                        ]
+                    }
+                ],
+                "case-002": [
+                    {
+                        id: "suspect-005",
+                        name: "Dr. Aris Thorne",
+                        age: 45,
+                        occupation: "Chief Technology Officer",
+                        relation: "Colleague / Superior",
+                        avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80",
+                        alibi: "In the server room repairing cluster nodes during the midnight hour.",
+                        personality: "Intense, workaholic, fiercely competitive.",
+                        suspicion: 50,
+                        interviews: [
+                            { q: "What was Julian working on before he vanished?", a: "He was finalizing the neural core algorithm. Worth billions in defense contracts." },
+                            { q: "Were you two on good terms?", a: "We had professional disagreements over project leadership, nothing more." },
+                            { q: "Did anyone else have access to his terminal?", a: "Only master admins. Myself and Marcus." }
+                        ]
+                    },
+                    {
+                        id: "suspect-006",
+                        name: "Chloe Chen",
+                        age: 28,
+                        occupation: "Junior Data Analyst",
+                        relation: "Assistant to Julian",
+                        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80",
+                        alibi: "Left the office at 10:00 PM to catch the last subway train.",
+                        personality: "Brilliant coder, anxious, overworked.",
+                        suspicion: 30,
+                        interviews: [
+                            { q: "Did Julian seem stressed lately?", a: "Extremely. He mentioned someone was trying to backdoor our repository." },
+                            { q: "Did you leave at 10 PM?", a: "Yes, my transit pass swipe timestamp proves it at Union Station." },
+                            { q: "Who do you suspect?", a: "Marcus Vance has been snooping around Julian's desk after hours." }
+                        ]
+                    },
+                    {
+                        id: "suspect-007",
+                        name: "Marcus Vance",
+                        age: 41,
+                        occupation: "Head of Security / Risk Management",
+                        relation: "Corporate Security",
+                        avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=300&q=80",
+                        alibi: "Conducting perimeter patrol on floors 30-50 from 11:00 PM to midnight.",
+                        personality: "Cold, calculating, former military intelligence.",
+                        suspicion: 90,
+                        interviews: [
+                            { q: "Why were the hallway cameras disabled?", a: "Scheduled firmware update. Standard protocol every Tuesday night." },
+                            { q: "Did you check Julian's office?", a: "I did at midnight. Window was unlatched and his terminal was wiped clean." },
+                            { q: "Do you know about the offshore accounts?", a: "That is classified corporate information, Detective." }
+                        ]
+                    },
+                    {
+                        id: "suspect-008",
+                        name: "Elena Rostova",
+                        age: 39,
+                        occupation: "Venture Capitalist",
+                        relation: "Primary Investor",
+                        avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=300&q=80",
+                        alibi: "Dining with board members at an upscale restaurant downtown.",
+                        personality: "Ambitious, ruthless in negotiations, financial backer.",
+                        suspicion: 45,
+                        interviews: [
+                            { q: "What was your stake in Julian's project?", a: "We invested 15 million. We expected delivery by month's end." },
+                            { q: "Did Julian threaten to walk away?", a: "He mentioned taking his patents independent. That would have bankrupted us." },
+                            { q: "Were you in the building tonight?", a: "Absolutely not. My reservation receipt and credit card logs verify my dinner." }
+                        ]
+                    }
+                ],
+                "case-003": [
+                    {
+                        id: "suspect-009",
+                        name: "Victor Sterling",
+                        age: 50,
+                        occupation: "Antique Appraiser",
+                        relation: "Nephew and Heir",
+                        avatar: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=300&q=80",
+                        alibi: "Trapped in the estate guest lodge due to heavy snow drifts outside.",
+                        personality: "Greedy, impatient for inheritance, gambling addict.",
+                        suspicion: 75,
+                        interviews: [
+                            { q: "When did you last see your uncle?", a: "Yesterday afternoon. He refused to lend me money to settle my debts." },
+                            { q: "How did someone enter a locked room?", a: "Uncle Arthur was paranoid. He had secret passages built into the old manor." },
+                            { q: "What will you inherit?", a: "The entire estate... or so I was promised in his original will." }
+                        ]
+                    },
+                    {
+                        id: "suspect-010",
+                        name: "Dr. Evelyn Reed",
+                        age: 48,
+                        occupation: "Professor of History & Toxicology Expert",
+                        relation: "Close academic rival",
+                        avatar: "https://images.unsplash.com/photo-1594744803329-e58b31de8bf5?auto=format&fit=crop&w=300&q=80",
+                        alibi: "Working in the library annex cataloging rare manuscripts.",
+                        personality: "Intellectual, vindictive, meticulous.",
+                        suspicion: 92,
+                        interviews: [
+                            { q: "What was your relationship with Arthur?", a: "We disputed the provenance of the Renaissance codex for years. He took credit for my research." },
+                            { q: "Do you know about rare poisons?", a: "My doctoral thesis was on historical Borgia-era alkaloids. Why do you ask?" },
+                            { q: "Were you near his study last night?", a: "I passed by at 9:00 PM to drop off catalog notes under his door." }
+                        ]
+                    },
+                    {
+                        id: "suspect-011",
+                        name: "Greta Schmidt",
+                        age: 60,
+                        occupation: "Personal Cook & Caretaker",
+                        relation: "Household staff of 20 years",
+                        avatar: "https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?auto=format&fit=crop&w=300&q=80",
+                        alibi: "Prepared dinner in the kitchen and retired to her quarters at 8:30 PM.",
+                        personality: "Loyal, quiet, knows everyone's deepest secrets.",
+                        suspicion: 20,
+                        interviews: [
+                            { q: "What did Arthur eat last evening?", a: "Just herbal chamomile tea and dry toast. He had a weak stomach." },
+                            { q: "Did anyone visit his study?", a: "Doctor Reed knocked on the door around 9 PM. Master Arthur sounded upset." },
+                            { q: "Was the door locked from inside?", a: "Always. He bolted it every night before sleeping." }
+                        ]
+                    },
+                    {
+                        id: "suspect-012",
+                        name: "Julian Cross",
+                        age: 38,
+                        occupation: "Private Bookbinder / Restorer",
+                        relation: "Contractor",
+                        avatar: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=300&q=80",
+                        alibi: "Departed the estate at 5:00 PM before the snowstorm worsened.",
+                        personality: "Shifty, desperate for rare book sales.",
+                        suspicion: 40,
+                        interviews: [
+                            { q: "Were you restoring books in the study?", a: "Yes, I restored the 16th-century binding on his prayer book earlier in the week." },
+                            { q: "Did you notice anything unusual about the room?", a: "There was a loose floor panel near the fireplace. Looked like a crawlspace." },
+                            { q: "Did Arthur pay you?", a: "In cash. Exactly as agreed." }
+                        ]
+                    }
+                ]
+            },
+
+            evidence: {
+                "case-001": [
+                    { id: "ev-001", title: "Crime Scene Photograph", type: "Photograph", desc: "Shows the ransacked safe with empty velvet indentation where the Star of Orion rested.", details: "No forced entry marks on the heavy steel door. The keypad digital display shows fingerprint smudges.", status: "unread" },
+                    { id: "ev-002", title: "Anonymous Threat Letter", type: "Letter", desc: "Found slipped under the study door two days prior to the gala.", details: "Typewritten on vintage linen paper: 'Your stolen wealth cannot protect your secrets. The Star will be reclaimed.'", status: "unread" },
+                    { id: "ev-003", title: "Pawnshop Receipt", type: "Receipt", desc: "Recovered from Lady Clara's private wastebasket during the search.", details: "Indicates a high-value cash advance of $50,000 against diamond collateral, dated 3 days prior.", status: "unread" },
+                    { id: "ev-004", title: "CCTV Security Log", type: "CCTV report", desc: "Digital export from the manor's external cameras.", details: "Shows a power surge at exactly 10:14 PM. Main breaker box outside was manually switched off.", status: "unread" },
+                    { id: "ev-005", title: "Butler's Pocket Ledger", type: "Notebook", desc: "Contains timestamps of all resident movements during the evening.", details: "Noted that Lady Clara's maid left her chambers at 10:45 PM carrying a velvet pouch.", status: "unread" },
+                    { id: "ev-006", title: "Shattered Wine Glass", type: "Forensic Report", desc: "Found on the Persian rug near the desk.", details: "Traces of sedative drug (Midazolam) found in the remaining liquid.", status: "unread" },
+                    { id: "ev-007", title: "Fingerprint Powder Dusting", type: "Fingerprint report", desc: "Forensic analysis of the keypad safe buttons.", details: "Only Lord Alistair's and Lady Clara's latent prints detected on the input dial.", status: "unread" },
+                    { id: "ev-008", title: "Newspaper Clipping", type: "Newspaper", desc: "Article detailing high-stakes underground poker debts among nobility.", details: "Mentions Lady Clara was spotted leaving an underground club last month.", status: "unread" }
+                ],
+                "case-002": [
+                    { id: "ev-009", title: "Workstation Terminal Log", type: "Digital Data", desc: "Final command executed before terminal shutdown at 11:50 PM.", details: "Script initiated: 'scp -r /core/ai/* external_node@offshore_relay:/drop/'", status: "unread" },
+                    { id: "ev-010", title: "Corridor Security Footage", type: "CCTV report", desc: "Pitched hallway camera recording.", details: "At 11:45 PM, someone wearing a security jacket entered Julian's lab using a master badge.", status: "unread" },
+                    { id: "ev-011", title: "Encrypted Flash Drive", type: "Key/Drive", desc: "Found taped underneath Julian's keyboard drawer.", details: "Contains offsite wallet keys holding $2 million in cryptocurrency transfers.", status: "unread" },
+                    { id: "ev-012", title: "Shredded Memo Strip", type: "Document", desc: "Reconstructed document from office paper shredder.", details: "...if Marcus continues auditing my files, I will go public with the security bypass codes...", status: "unread" },
+                    { id: "ev-013", title: "Subway Turnstile Record", type: "Receipt", desc: "Transit log for Chloe Chen.", details: "Swiped at Union Station at exactly 10:12 PM. Solid alibi for time of disappearance.", status: "unread" },
+                    { id: "ev-014", title: "Offshore Bank Transfer", type: "Financial Report", desc: "Found in corporate audit files.", details: "$500,000 wired to Marcus Vance's Cayman Islands account from shell corp.", status: "unread" },
+                    { id: "ev-015", title: "Stairwell Emergency Door Sensor", type: "Sensor Log", desc: "Roof access door opened at 11:58 PM.", details: "Door alarm triggered for 45 seconds, then manually silenced with supervisor code.", status: "unread" },
+                    { id: "ev-016", title: "Personal Notebook Page", type: "Letter", desc: "Written in Julian's handwriting.", details: "'Marcus is blackmailing me over the defense contract flaw. If anything happens to me, check the cloud vault.'", status: "unread" }
+                ],
+                "case-003": [
+                    { id: "ev-017", title: "Post-Mortem Toxicology", type: "Medical Report", desc: "Blood analysis of Arthur Pendelton.", details: "Contains lethal dose of aconite (wolfsbane) extract dissolved in herbal tea.", status: "unread" },
+                    { id: "ev-018", title: "Study Door Deadbolt", type: "Forensic Report", desc: "Inspection of interior latch mechanism.", details: "Spring-loaded magnetic slide bolt rigged to lock automatically upon closing from outside with a timer.", status: "unread" },
+                    { id: "ev-019", title: "Contested Manuscript", type: "Letter", desc: "Draft academic paper marked up with red ink.", details: "Arthur Pendelton's handwritten note: 'Evelyn Reed's historical claims are baseless plagiarism.'", status: "unread" },
+                    { id: "ev-020", title: "Teacup Residue Analysis", type: "Forensic Report", desc: "Scraping from ceramic teacup on desk.", details: "High concentration of powdered aconite crystals settled at the base.", status: "unread" },
+                    { id: "ev-021", title: "Secret Crawlspace Access", type: "Photograph", desc: "Hidden panel behind the grandfather clock.", details: "Leads directly from the library annex (Dr. Reed's workstation area) into Arthur's study ceiling.", status: "unread" },
+                    { id: "ev-022", title: "Pharmacy Purchase Log", type: "Receipt", desc: "Recovered botanical garden dispensary records.", details: "Dr. Evelyn Reed purchased processed aconite tubers for botanical research last month.", status: "unread" },
+                    { id: "ev-023", title: "Will & Testament Draft", type: "Document", desc: "Found inside Arthur's desk drawer.", details: "Stating his entire rare book collection is bequeathed to the National Archives, disinheriting Victor.", status: "unread" },
+                    { id: "ev-024", title: "Footprint in Dust", type: "Photograph", desc: "Found inside the secret crawlspace passage.", details: "Shoe tread impression matches a specific Italian leather boot size worn by Dr. Evelyn Reed.", status: "unread" }
+                ]
+            },
+
+            clues: {
+                "case-001": [
+                    { id: "clue-01", text: "A pawnshop receipt was discovered in Lady Clara's personal trash bin.", detail: "The receipt shows a $50,000 cash advance against diamond collateral just days before the gala.", status: "unread" },
+                    { id: "clue-02", text: "Security cameras suffered a precise power blackout at 10:14 PM.", detail: "The main breaker box outside was switched off by hand, indicating insider access.", },
+                    { id: "clue-03", text: "Traces of sedative drug were found in a shattered wine glass.", detail: "Guest drinks were spiked to incapacitate potential witnesses during the theft.", status: "unread" },
+                    { id: "clue-04", text: "Fingerprint analysis revealed only Lord Alistair and Lady Clara's prints on the safe.", detail: "No outside burglar fingerprints were left behind on the heavy steel keypad.", status: "unread" }
+                ],
+                "case-002": [
+                    { id: "clue-05", text: "Terminal command executed an offshore data transfer at 11:50 PM.", detail: "Neural core algorithms were packaged and transmitted to an external relay.", status: "unread" },
+                    { id: "clue-06", text: "Corridor footage shows someone using a master badge during camera maintenance.", detail: "Only security management possessed override clearance during the blackout window.", status: "unread" },
+                    { id: "clue-07", text: "An offshore bank wire of $500,000 was traced to Marcus Vance's account.", detail: "Funds originated from a shell corporation tied to corporate espionage.", status: "unread" },
+                    { id: "clue-08", text: "Julian's notebook warned of blackmail regarding defense contract flaws.", detail: "Marcus Vance was pressuring Julian to hand over security bypass credentials.", status: "unread" }
+                ],
+                "case-003": [
+                    { id: "clue-09", text: "A lethal dose of aconite poison was dissolved in Arthur's herbal tea.", detail: "Poison was administered in a cup prepared before bedtime.", status: "unread" },
+                    { id: "clue-10", text: "A secret crawlspace linked the library annex directly to Arthur's study ceiling.", detail: "Provides a physical method for entering and exiting the 'locked room' undetected.", status: "unread" },
+                    { id: "clue-11", text: "Dr. Evelyn Reed purchased processed aconite tubers from a botanical dispensary.", detail: "Direct procurement of the exact toxin used in the murder.", status: "unread" },
+                    { id: "clue-12", text: "Shoe tread impressions inside the crawlspace match Dr. Reed's boots.", detail: "Forensic footprint matches footwear worn exclusively by Evelyn Reed.", status: "unread" }
+                ]
+            },
+
+            timeline: {
+                "case-001": [
+                    { time: "8:00 PM", event: "Lord Alistair opens the annual high-society charity gala." },
+                    { time: "9:15 PM", event: "Lady Clara visits the study to inspect the Star of Orion display." },
+                    { time: "10:14 PM", event: "Main electrical breaker outside is manually turned off; cameras flicker." },
+                    { time: "10:30 PM", event: "Stolen diamond necklace is removed from the unlocked safe." },
+                    { time: "11:30 PM", event: "Power restored; theft discovered when last guest enters study." }
+                ],
+                "case-002": [
+                    { time: "8:00 PM", event: "Julian Vance begins late-night debugging on the neural core." },
+                    { time: "10:00 PM", event: "Chloe Chen swipes out at Union Station subway terminal." },
+                    { time: "11:00 PM", event: "Hallway security cameras marked for scheduled maintenance blackout." },
+                    { time: "11:50 PM", event: "Final data transfer script executed on Julian's terminal." },
+                    { time: "12:00 AM", event: "Security patrol discovers office empty and terminal wiped." }
+                ],
+                "case-003": [
+                    { time: "6:00 PM", event: "Greta Schmidt delivers evening herbal tea to Arthur's study." },
+                    { time: "9:00 PM", event: "Dr. Evelyn Reed drops manuscript notes under Arthur's door." },
+                    { time: "10:30 PM", event: "Heavy snowstorm blocks all exterior estate gates and exits." },
+                    { time: "11:15 PM", event: "Magnetic deadlock engages automatically from remote timer." },
+                    { time: "8:00 AM (Next Day)", event: "Police force locked study door and find Arthur deceased." }
+                ]
+            }
+        };
+
+        // ==========================================
+        // APPLICATION STATE & STORAGE MANAGER
+        // ==========================================
+        class MysteryBoxApp {
+            constructor() {
+                this.currentView = 'landing'; // landing, case-select, investigation, accusation, summary
+                this.activeCaseId = null;
+                this.activeTab = 'file'; // file, suspects, evidence, clues, timeline, notes, board
+                this.saveKey = 'mysterybox_save_state_v1';
+                
+                this.state = this.loadState();
+            }
+
+            loadState() {
+                const defaultState = {
+                    solvedCases: [],
+                    solvedDetails: {}, // caseId -> { rank, score, time, cluesFound, evidenceExamined }
+                    notes: {}, // caseId -> [ {id, text, timestamp} ]
+                    discoveredClues: {}, // caseId -> [ clueIds ]
+                    examinedEvidence: {}, // caseId -> [ evidenceIds ]
+                    suspectSuspicion: {}, // caseId -> { suspectId: level }
+                    activeCase: null
+                };
+
+                try {
+                    const saved = localStorage.getItem(this.saveKey);
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        return { ...defaultState, ...parsed };
+                    }
+                } catch (e) {
+                    console.error("Failed to load save state", e);
+                }
+                return defaultState;
+            }
+
+            saveState() {
+                try {
+                    localStorage.setItem(this.saveKey, JSON.stringify(this.state));
+                } catch (e) {
+                    console.error("Failed to save state", e);
+                    this.showToast("Failed to save progress to localStorage.", "error");
+                }
+            }
+
+            resetAllData() {
+                if (confirm("Are you sure you want to reset all investigation progress? This cannot be undone.")) {
+                    localStorage.removeItem(this.saveKey);
+                    this.state = this.loadState();
+                    this.activeCaseId = null;
+                    this.currentView = 'landing';
+                    this.render();
+                    this.showToast("All investigation records wiped.", "info");
+                }
+            }
+
+            init() {
+                this.render();
+                this.updateHeaderStats();
+            }
+
+            updateHeaderStats() {
+                const solvedCount = this.state.solvedCases.length;
+                const rankElem = document.getElementById('stat-rank');
+                const solvedElem = document.getElementById('stat-solved');
+                
+                if (solvedElem) solvedElem.textContent = solvedCount;
+                if (rankElem) {
+                    let rank = "Novice Detective";
+                    if (solvedCount === 1) rank = "Junior Inspector";
+                    else if (solvedCount === 2) rank = "Senior Investigator";
+                    else if (solvedCount >= 3) rank = "Master Detective (S)";
+                    rankElem.textContent = rank;
+                }
+            }
+
+            navigateTo(view, caseId = null) {
+                this.currentView = view;
+                if (caseId) {
+                    this.activeCaseId = caseId;
+                    this.state.activeCase = caseId;
+                    this.saveState();
+                }
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                this.render();
+                this.updateHeaderStats();
+            }
+
+            showToast(message, type = 'info') {
+                const container = document.getElementById('toast-container');
+                if (!container) return;
+
+                const toast = document.createElement('div');
+                let bg = 'bg-neutral-900 border-neutral-700 text-white';
+                let icon = 'fa-circle-info text-blue-400';
+
+                if (type === 'success') {
+                    bg = 'bg-emerald-950 border-emerald-700 text-emerald-200';
+                    icon = 'fa-circle-check text-emerald-400';
+                } else if (type === 'error') {
+                    bg = 'bg-red-950 border-red-700 text-red-200';
+                    icon = 'fa-triangle-exclamation text-red-400';
+                }
+
+                toast.className = `pointer-events-auto flex items-center space-x-3 px-4 py-3 rounded-lg border shadow-xl backdrop-blur-md ${bg} animate-fade-in text-sm font-medium`;
+                toast.innerHTML = `<i class="fa-solid ${icon} text-lg"></i><span>${message}</span>`;
+                
+                container.appendChild(toast);
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transition = 'opacity 0.3s ease';
+                    setTimeout(() => toast.remove(), 300);
+                }, 3500);
+            }
+
+            openModal(htmlContent) {
+                const container = document.getElementById('modal-container');
+                const content = document.getElementById('modal-content');
+                if (!container || !content) return;
+
+                content.innerHTML = htmlContent;
+                container.classList.remove('hidden');
+            }
+
+            closeModal() {
+                const container = document.getElementById('modal-container');
+                if (container) container.classList.add('hidden');
+            }
+
+            // ==========================================
+            // RENDERING ENGINE
+            // ==========================================
+            render() {
+                const container = document.getElementById('app-container');
+                if (!container) return;
+
+                switch (this.currentView) {
+                    case 'landing':
+                        container.innerHTML = this.renderLandingView();
+                        break;
+                    case 'case-select':
+                        container.innerHTML = this.renderCaseSelectView();
+                        break;
+                    case 'investigation':
+                        container.innerHTML = this.renderInvestigationView();
+                        this.initInvestigationInteractions();
+                        break;
+                    case 'accusation':
+                        container.innerHTML = this.renderAccusationView();
+                        break;
+                    case 'summary':
+                        container.innerHTML = this.renderSummaryView();
+                        break;
+                    default:
+                        container.innerHTML = this.renderLandingView();
+                }
+            }
+
+            // 1. LANDING PAGE VIEW
+            renderLandingView() {
+                const solvedCount = this.state.solvedCases.length;
+                return `
+                <div class="flex-1 flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden">
+                    <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-neutral-900 via-charcoal to-black -z-10"></div>
+                    
+                    <div class="max-w-4xl w-full text-center space-y-8 my-auto">
+                        <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-red-950/50 border border-red-900/50 text-red-400 text-xs font-mono uppercase tracking-widest">
+                            <i class="fa-solid fa-shield-halved"></i> Bureau of Detective Investigation
+                        </div>
+
+                        <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight text-white uppercase font-sans">
+                            MYSTERY<span class="text-red-600">BOX</span>
+                        </h1>
+                        <p class="text-xl md:text-2xl text-neutral-400 font-serif italic">
+                            "Every clue has a secret."
+                        </p>
+                        <p class="text-neutral-300 max-w-xl mx-auto text-sm md:text-base">
+                            Step into the case file. Examine raw evidence, interrogate evasive suspects, connect the timeline, and uncover the truth behind locked doors.
+                        </p>
+
+                        <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+                            <button onclick="app.navigateTo('case-select')" class="w-full sm:w-auto px-8 py-4 bg-red-800 hover:bg-red-700 text-white font-semibold rounded-xl shadow-lg shadow-red-900/30 transition-all flex items-center justify-center space-x-3">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <span>Start Investigation</span>
+                            </button>
+                            <button onclick="app.navigateTo('case-select')" class="w-full sm:w-auto px-8 py-4 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-neutral-700 font-semibold rounded-xl transition-all flex items-center justify-center space-x-3">
+                                <i class="fa-solid fa-folder-tree"></i>
+                                <span>View Cases (${GAME_DATA.cases.length})</span>
+                            </button>
+                        </div>
+
+                        <!-- Active stats summary banner -->
+                        <div class="grid grid-cols-3 gap-4 max-w-lg mx-auto pt-8 border-t border-neutral-800/80 text-center font-mono">
+                            <div class="bg-neutral-900/60 p-4 rounded-xl border border-neutral-800">
+                                <div class="text-2xl font-bold text-white">${GAME_DATA.cases.length}</div>
+                                <div class="text-xs text-neutral-400 uppercase">Total Cases</div>
+                            </div>
+                            <div class="bg-neutral-900/60 p-4 rounded-xl border border-neutral-800">
+                                <div class="text-2xl font-bold text-emerald-400">${solvedCount}</div>
+                                <div class="text-xs text-neutral-400 uppercase">Solved</div>
+                            </div>
+                            <div class="bg-neutral-900/60 p-4 rounded-xl border border-neutral-800">
+                                <div class="text-2xl font-bold text-amber-500">${solvedCount > 0 ? 'Active' : 'Ready'}</div>
+                                <div class="text-xs text-neutral-400 uppercase">Status</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+
+            // 2. CASE SELECTION VIEW
+            renderCaseSelectView() {
+                return `
+                <div class="flex-1 max-w-6xl w-full mx-auto px-4 py-8 space-y-8">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-bordercolor pb-6">
+                        <div>
+                            <button onclick="app.navigateTo('landing')" class="text-xs text-neutral-400 hover:text-white mb-2 inline-flex items-center space-x-1">
+                                <i class="fa-solid fa-arrow-left"></i> <span>Back to Home</span>
+                            </button>
+                            <h2 class="text-3xl font-bold text-white">Active Case Files</h2>
+                            <p class="text-sm text-neutral-400">Select an unsolved mystery to begin your detective inquiry.</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        ${GAME_DATA.cases.map(c => {
+                            const isSolved = this.state.solvedCases.includes(c.id);
+                            return `
+                            <div class="bg-cardbg border border-bordercolor rounded-2xl overflow-hidden flex flex-col hover:border-red-900 transition-all duration-300 group">
+                                <div class="relative h-48 overflow-hidden bg-neutral-900">
+                                    <img src="${c.image}" alt="${c.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80">
+                                    <div class="absolute inset-0 bg-gradient-to-t from-cardbg via-transparent to-transparent"></div>
+                                    <span class="absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-mono font-bold uppercase tracking-wider ${c.difficultyColor} border">
+                                        ${c.difficulty}
+                                    </span>
+                                    ${isSolved ? '<span class="absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-800"><i class="fa-solid fa-check mr-1"></i> SOLVED</span>' : ''}
+                                </div>
+                                <div class="p-6 flex-1 flex flex-col justify-between space-y-4">
+                                    <div>
+                                        <div class="text-xs font-mono text-red-500 font-semibold mb-1">${c.number}</div>
+                                        <h3 class="text-xl font-bold text-white mb-2">${c.title}</h3>
+                                        <p class="text-sm text-neutral-400 line-clamp-3">${c.subtitle}</p>
+                                    </div>
+                                    
+                                    <div class="pt-4 border-t border-neutral-800 flex items-center justify-between text-xs text-neutral-400 font-mono">
+                                        <span><i class="fa-regular fa-clock mr-1"></i> ${c.timeEst}</span>
+                                        <span><i class="fa-solid fa-puzzle-piece mr-1"></i> ${GAME_DATA.evidence[c.id].length} Evidence</span>
+                                    </div>
+
+                                    <button onclick="app.navigateTo('investigation', '${c.id}')" class="w-full py-3 bg-red-900/80 hover:bg-red-800 text-white rounded-xl font-medium transition-colors flex items-center justify-center space-x-2">
+                                        <span>${isSolved ? 'Review Case' : 'Start Investigation'}</span>
+                                        <i class="fa-solid fa-chevron-right text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+                `;
+            }
+
+            // 3. INVESTIGATION ROOM VIEW
+            renderInvestigationView() {
+                if (!this.activeCaseId) {
+                    this.activeCaseId = this.state.activeCase || 'case-001';
+                }
+                const caseData = GAME_DATA.cases.find(c => c.id === this.activeCaseId);
+                const suspects = GAME_DATA.suspects[this.activeCaseId] || [];
+                const evidence = GAME_DATA.evidence[this.activeCaseId] || [];
+                const clues = GAME_DATA.clues[this.activeCaseId] || [];
+                const timeline = GAME_DATA.timeline[this.activeCaseId] || [];
+
+                // Calculate progress %
+                const discoveredClueCount = (this.state.discoveredClues[this.activeCaseId] || []).length;
+                const examinedEvidenceCount = (this.state.examinedEvidence[this.activeCaseId] || []).length;
+                const totalItems = clues.length + evidence.length;
+                const progressPct = totalItems > 0 ? Math.round(((discoveredClueCount + examinedEvidenceCount) / (totalItems * 2)) * 100) : 0;
+
+                return `
+                <div class="flex-1 flex flex-col h-[calc(100vh-65px)]">
+                    <!-- Top Investigation Bar -->
+                    <div class="bg-neutral-900 border-b border-bordercolor px-4 lg:px-8 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="flex items-center space-x-3">
+                            <button onclick="app.navigateTo('case-select')" class="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-xs font-mono transition-colors">
+                                <i class="fa-solid fa-arrow-left mr-1"></i> Cases
+                            </button>
+                            <div>
+                                <span class="text-xs font-mono text-red-500 font-bold">${caseData.number}</span>
+                                <h2 class="text-lg font-bold text-white">${caseData.title}</h2>
+                            </div>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="flex items-center space-x-4">
+                            <div class="hidden sm:block text-xs font-mono text-neutral-400">
+                                Progress: <strong class="text-white">${progressPct}%</strong>
+                            </div>
+                            <div class="w-32 bg-neutral-800 h-2.5 rounded-full overflow-hidden border border-neutral-700">
+                                <div class="bg-red-700 h-full transition-all duration-500" style="width: ${progressPct}%"></div>
+                            </div>
+                            <button onclick="app.navigateTo('accusation')" class="px-4 py-2 bg-red-800 hover:bg-red-700 text-white rounded-lg text-xs font-semibold uppercase tracking-wider shadow-lg shadow-red-900/30 transition-all flex items-center space-x-2">
+                                <i class="fa-solid fa-gavel"></i>
+                                <span>Accusation</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Navigation Tabs -->
+                    <div class="bg-charcoal border-b border-bordercolor px-4 lg:px-8 flex space-x-1 md:space-x-4 overflow-x-auto font-mono text-xs">
+                        <button onclick="app.switchTab('file')" class="py-3 px-4 border-b-2 font-medium whitespace-nowrap transition-colors ${this.activeTab === 'file' ? 'border-red-600 text-white' : 'border-transparent text-neutral-400 hover:text-neutral-200'}">
+                            <i class="fa-solid fa-folder-open mr-2"></i> Case File
+                        </button>
+                        <button onclick="app.switchTab('suspects')" class="py-3 px-4 border-b-2 font-medium whitespace-nowrap transition-colors ${this.activeTab === 'suspects' ? 'border-red-600 text-white' : 'border-transparent text-neutral-400 hover:text-neutral-200'}">
+                            <i class="fa-solid fa-users mr-2"></i> Suspects (${suspects.length})
+                        </button>
+                        <button onclick="app.switchTab('evidence')" class="py-3 px-4 border-b-2 font-medium whitespace-nowrap transition-colors ${this.activeTab === 'evidence' ? 'border-red-600 text-white' : 'border-transparent text-neutral-400 hover:text-neutral-200'}">
+                            <i class="fa-solid fa-magnifying-glass-plus mr-2"></i> Evidence (${evidence.length})
+                        </button>
+                        <button onclick="app.switchTab('clues')" class="py-3 px-4 border-b-2 font-medium whitespace-nowrap transition-colors ${this.activeTab === 'clues' ? 'border-red-600 text-white' : 'border-transparent text-neutral-400 hover:text-neutral-200'}">
+                            <i class="fa-solid fa-fingerprint mr-2"></i> Clues (${clues.length})
+                        </button>
+                        <button onclick="app.switchTab('timeline')" class="py-3 px-4 border-b-2 font-medium whitespace-nowrap transition-colors ${this.activeTab === 'timeline' ? 'border-red-600 text-white' : 'border-transparent text-neutral-400 hover:text-neutral-200'}">
+                            <i class="fa-solid fa-clock-rotate-left mr-2"></i> Timeline
+                        </button>
+                        <button onclick="app.switchTab('board')" class="py-3 px-4 border-b-2 font-medium whitespace-nowrap transition-colors ${this.activeTab === 'board' ? 'border-red-600 text-white' : 'border-transparent text-neutral-400 hover:text-neutral-200'}">
+                            <i class="fa-solid fa-network-wired mr-2"></i> Detective Board
+                        </button>
+                        <button onclick="app.switchTab('notes')" class="py-3 px-4 border-b-2 font-medium whitespace-nowrap transition-colors ${this.activeTab === 'notes' ? 'border-red-600 text-white' : 'border-transparent text-neutral-400 hover:text-neutral-200'}">
+                            <i class="fa-solid fa-note-sticky mr-2"></i> Detective Notes
+                        </button>
+                    </div>
+
+                    <!-- Tab Content Area -->
+                    <div class="flex-1 overflow-y-auto p-4 lg:p-8">
+                        ${this.renderActiveTabContent(caseData, suspects, evidence, clues, timeline)}
+                    </div>
+                </div>
+                `;
+            }
+
+            switchTab(tab) {
+                this.activeTab = tab;
+                this.render();
+            }
+
+            renderActiveTabContent(caseData, suspects, evidence, clues, timeline) {
+                switch (this.activeTab) {
+                    case 'file':
+                        return `
+                        <div class="max-w-4xl mx-auto space-y-6 animate-fade-in">
+                            <div class="bg-cardbg border border-bordercolor rounded-2xl p-6 lg:p-8 shadow-xl relative overflow-hidden">
+                                <div class="absolute top-0 right-0 w-64 h-64 bg-red-900/5 rounded-full blur-3xl pointer-events-none"></div>
+                                <div class="flex flex-col md:flex-row gap-8 items-start">
+                                    <img src="${caseData.image}" alt="${caseData.title}" class="w-full md:w-72 h-48 object-cover rounded-xl border border-neutral-800">
+                                    <div class="space-y-4 flex-1">
+                                        <div class="inline-block px-3 py-1 rounded bg-red-950 text-red-400 border border-red-900 text-xs font-mono font-bold">${caseData.number}</div>
+                                        <h3 class="text-3xl font-bold text-white">${caseData.title}</h3>
+                                        <p class="text-neutral-300 leading-relaxed">${caseData.description}</p>
+                                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-neutral-800 text-xs font-mono">
+                                            <div>
+                                                <span class="text-neutral-500 block">DIFFICULTY</span>
+                                                <strong class="text-white">${caseData.difficulty}</strong>
+                                            </div>
+                                            <div>
+                                                <span class="text-neutral-500 block">EST. TIME</span>
+                                                <strong class="text-white">${caseData.timeEst}</strong>
+                                            </div>
+                                            <div>
+                                                <span class="text-neutral-500 block">STATUS</span>
+                                                <strong class="${this.state.solvedCases.includes(caseData.id) ? 'text-emerald-400' : 'text-amber-400'} uppercase">${this.state.solvedCases.includes(caseData.id) ? 'Solved' : 'Unsolved'}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="bg-cardbg border border-bordercolor rounded-2xl p-6 space-y-4">
+                                    <h4 class="font-bold text-white flex items-center space-x-2">
+                                        <i class="fa-solid fa-bullseye text-red-500"></i>
+                                        <span>Investigation Objectives</span>
+                                    </h4>
+                                    <ul class="space-y-3 text-sm text-neutral-300">
+                                        <li class="flex items-start space-x-3">
+                                            <i class="fa-solid fa-check text-emerald-500 mt-1"></i>
+                                            <span>Examine all ${evidence.length} physical and digital evidence items.</span>
+                                        </li>
+                                        <li class="flex items-start space-x-3">
+                                            <i class="fa-solid fa-check text-emerald-500 mt-1"></i>
+                                            <span>Collect clues and review suspect interview statements.</span>
+                                        </li>
+                                        <li class="flex items-start space-x-3">
+                                            <i class="fa-solid fa-circle text-neutral-600 mt-1"></i>
+                                            <span>Synthesize timeline events and establish the culprit's motive and opportunity.</span>
+                                        </li>
+                                    </ul>
+                                </div>
+
+                                <div class="bg-cardbg border border-bordercolor rounded-2xl p-6 space-y-4">
+                                    <h4 class="font-bold text-white flex items-center space-x-2">
+                                        <i class="fa-solid fa-lightbulb text-amber-500"></i>
+                                        <span>Detective Quick Tip</span>
+                                    </h4>
+                                    <p class="text-sm text-neutral-300 leading-relaxed">
+                                        Not all statements are truthful. Cross-reference suspect alibis with CCTV reports, receipts, and forensic logs on the Detective Board to uncover inconsistencies.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        `;
+
+                    case 'suspects':
+                        return `
+                        <div class="max-w-6xl mx-auto space-y-6 animate-fade-in">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-xl font-bold text-white">Suspect Dossiers</h3>
+                                <span class="text-xs font-mono text-neutral-400">Click a suspect to inspect profile and conduct interview</span>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                ${suspects.map(s => `
+                                <div onclick="app.openSuspectModal('${s.id}')" class="bg-cardbg border border-bordercolor rounded-2xl overflow-hidden cursor-pointer hover:border-red-800 transition-all group flex flex-col">
+                                    <div class="h-64 overflow-hidden relative bg-neutral-900">
+                                        <img src="${s.avatar}" alt="${s.name}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                                        <div class="absolute inset-0 bg-gradient-to-t from-cardbg via-transparent to-transparent"></div>
+                                        <span class="absolute bottom-3 left-3 px-2.5 py-1 rounded bg-black/70 backdrop-blur text-xs font-mono text-white border border-neutral-700">${s.relation}</span>
+                                    </div>
+                                    <div class="p-5 flex-1 flex flex-col justify-between space-y-3">
+                                        <div>
+                                            <h4 class="text-lg font-bold text-white group-hover:text-red-400 transition-colors">${s.name}</h4>
+                                            <p class="text-xs text-neutral-400 font-mono">${s.occupation} (${s.age} yrs)</p>
+                                        </div>
+                                        <p class="text-xs text-neutral-300 line-clamp-2">${s.alibi}</p>
+                                        <div class="pt-3 border-t border-neutral-800 flex items-center justify-between text-xs">
+                                            <span class="text-neutral-500 font-mono">Suspicion</span>
+                                            <span class="font-mono font-bold text-red-500">${s.suspicion}%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        `;
+
+                    case 'evidence':
+                        const examinedList = this.state.examinedEvidence[this.activeCaseId] || [];
+                        return `
+                        <div class="max-w-6xl mx-auto space-y-6 animate-fade-in">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-xl font-bold text-white">Evidence Locker</h3>
+                                <span class="text-xs font-mono text-neutral-400">Examined: ${examinedList.length}/${evidence.length}</span>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                ${evidence.map(ev => {
+                                    const isExamined = examinedList.includes(ev.id);
+                                    return `
+                                    <div onclick="app.openEvidenceModal('${ev.id}')" class="bg-cardbg border ${isExamined ? 'border-neutral-700' : 'border-red-900/60'} rounded-2xl p-5 cursor-pointer hover:border-red-600 transition-all flex flex-col justify-between space-y-4 relative group">
+                                        ${!isExamined ? '<span class="absolute top-3 right-3 w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse"></span>' : ''}
+                                        <div>
+                                            <div class="flex items-center space-x-2 text-xs font-mono text-red-500 mb-2">
+                                                <i class="fa-solid fa-file-shield"></i>
+                                                <span>${ev.type}</span>
+                                            </div>
+                                            <h4 class="text-base font-bold text-white mb-2 group-hover:text-red-400 transition-colors">${ev.title}</h4>
+                                            <p class="text-xs text-neutral-400 line-clamp-3">${ev.desc}</p>
+                                        </div>
+                                        <div class="pt-3 border-t border-neutral-800 flex items-center justify-between text-xs font-mono text-neutral-500">
+                                            <span>${isExamined ? 'Examined' : 'Unexamined'}</span>
+                                            <i class="fa-solid fa-magnifying-glass text-neutral-400 group-hover:text-white"></i>
+                                        </div>
+                                    </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                        `;
+
+                    case 'clues':
+                        const discoveredList = this.state.discoveredClues[this.activeCaseId] || [];
+                        return `
+                        <div class="max-w-4xl mx-auto space-y-6 animate-fade-in">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-xl font-bold text-white">Discovered Clues</h3>
+                                <span class="text-xs font-mono text-neutral-400">Collected: ${discoveredList.length}/${clues.length}</span>
+                            </div>
+
+                            <div class="space-y-4">
+                                ${clues.map((c, idx) => {
+                                    const isDiscovered = discoveredList.includes(c.id);
+                                    return `
+                                    <div class="bg-cardbg border ${isDiscovered ? 'border-neutral-700' : 'border-bordercolor'} rounded-xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                        <div class="space-y-1">
+                                            <div class="text-xs font-mono text-red-500 font-bold">CLUE #0${idx + 1}</div>
+                                            <h4 class="text-base font-bold text-white">${c.text}</h4>
+                                            <p class="text-xs text-neutral-400">${isDiscovered ? c.detail : '🔒 [Inspect related evidence items to unlock full forensic breakdown]'}</p>
+                                        </div>
+                                        <div>
+                                            ${isDiscovered ? 
+                                                '<span class="px-3 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 text-xs font-mono font-medium">Logged</span>' :
+                                                `<button onclick="app.discoverClue('${c.id}')" class="px-4 py-2 bg-red-900/80 hover:bg-red-800 text-white rounded-lg text-xs font-medium transition-colors">Inspect Clue</button>`
+                                            }
+                                        </div>
+                                    </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                        `;
+
+                    case 'timeline':
+                        return `
+                        <div class="max-w-4xl mx-auto space-y-6 animate-fade-in">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-xl font-bold text-white">Case Timeline</h3>
+                                <span class="text-xs font-mono text-neutral-400">Chronological sequence of events</span>
+                            </div>
+
+                            <div class="relative border-l-2 border-red-900/60 ml-4 pl-6 space-y-8 py-4">
+                                ${timeline.map(t => `
+                                <div class="relative group">
+                                    <div class="absolute -left-[31px] top-1 w-4 h-4 rounded-full bg-red-700 border-4 border-charcoal"></div>
+                                    <div class="bg-cardbg border border-bordercolor rounded-xl p-5 space-y-1 hover:border-red-800 transition-colors">
+                                        <div class="text-xs font-mono text-red-500 font-bold">${t.time}</div>
+                                        <div class="text-sm font-medium text-white">${t.event}</div>
+                                    </div>
+                                </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        `;
+
+                    case 'board':
+                        return `
+                        <div class="max-w-6xl mx-auto space-y-6 animate-fade-in">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-xl font-bold text-white">Detective Deduction Board</h3>
+                                <span class="text-xs font-mono text-neutral-400">Corkboard synthesis view</span>
+                            </div>
+
+                            <div class="cork-board border border-bordercolor rounded-2xl p-6 lg:p-10 min-h-[500px] relative shadow-2xl overflow-hidden flex flex-col justify-between">
+                                <div class="absolute top-4 left-4 text-xs font-mono text-neutral-400 bg-black/60 px-3 py-1.5 rounded border border-neutral-800">
+                                    <i class="fa-solid fa-map-pin text-red-600 mr-1"></i> Drag / Connect Evidence to Suspects
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 my-auto pt-8">
+                                    <!-- Suspect Column -->
+                                    <div class="bg-neutral-900/90 backdrop-blur border border-neutral-700 p-5 rounded-xl shadow-xl relative">
+                                        <div class="pin"></div>
+                                        <h4 class="font-bold text-white text-sm uppercase tracking-wider mb-4 border-b border-neutral-800 pb-2"><i class="fa-solid fa-users text-red-500 mr-2"></i> Suspects</h4>
+                                        <ul class="space-y-3 text-xs">
+                                            ${suspects.map(s => `
+                                            <li class="bg-neutral-800/80 p-2.5 rounded border border-neutral-700 flex items-center justify-between">
+                                                <span class="font-medium text-white">${s.name}</span>
+                                                <span class="text-red-400 font-mono">${s.suspicion}%</span>
+                                            </li>
+                                            `).join('')}
+                                        </ul>
+                                    </div>
+
+                                    <!-- Clues Column -->
+                                    <div class="bg-neutral-900/90 backdrop-blur border border-neutral-700 p-5 rounded-xl shadow-xl relative">
+                                        <div class="pin"></div>
+                                        <h4 class="font-bold text-white text-sm uppercase tracking-wider mb-4 border-b border-neutral-800 pb-2"><i class="fa-solid fa-fingerprint text-amber-500 mr-2"></i> Key Clues</h4>
+                                        <ul class="space-y-3 text-xs">
+                                            ${clues.map((c, i) => `
+                                            <li class="bg-neutral-800/80 p-2.5 rounded border border-neutral-700 text-neutral-300">
+                                                <strong>Clue #${i+1}:</strong> ${c.text.substring(0, 40)}...
+                                            </li>
+                                            `).join('')}
+                                        </ul>
+                                    </div>
+
+                                    <!-- Target Culprit Deduction -->
+                                    <div class="bg-neutral-900/90 backdrop-blur border border-neutral-700 p-5 rounded-xl shadow-xl relative flex flex-col justify-between">
+                                        <div class="pin"></div>
+                                        <div>
+                                            <h4 class="font-bold text-white text-sm uppercase tracking-wider mb-4 border-b border-neutral-800 pb-2"><i class="fa-solid fa-bullseye text-emerald-500 mr-2"></i> Deduction Target</h4>
+                                            <p class="text-xs text-neutral-400 mb-4">When confident of motive and evidence, submit final accusation.</p>
+                                        </div>
+                                        <button onclick="app.navigateTo('accusation')" class="w-full py-2.5 bg-red-800 hover:bg-red-700 text-white rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors">
+                                            Make Final Accusation
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        `;
+
+                    case 'notes':
+                        const notesList = this.state.notes[this.activeCaseId] || [];
+                        return `
+                        <div class="max-w-4xl mx-auto space-y-6 animate-fade-in">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-xl font-bold text-white">Detective Notes</h3>
+                                <span class="text-xs font-mono text-neutral-400">Auto-saved to localStorage</span>
+                            </div>
+
+                            <!-- Add Note Form -->
+                            <div class="bg-cardbg border border-bordercolor rounded-2xl p-6 space-y-4">
+                                <h4 class="text-sm font-bold text-white">Add New Observation</h4>
+                                <textarea id="new-note-text" rows="3" placeholder="Type notes, deductions, or suspect alibi discrepancies here..." class="w-full bg-neutral-900 border border-neutral-700 rounded-xl p-4 text-sm text-white focus:outline-none focus:border-red-600 transition-colors"></textarea>
+                                <div class="flex justify-end">
+                                    <button onclick="app.addNote()" class="px-6 py-2.5 bg-red-800 hover:bg-red-700 text-white rounded-xl text-xs font-medium transition-colors flex items-center space-x-2">
+                                        <i class="fa-solid fa-plus"></i>
+                                        <span>Save Note</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Notes List -->
+                            <div class="space-y-4">
+                                ${notesList.length === 0 ? `
+                                <div class="text-center py-12 text-neutral-500 text-sm font-mono">No notes recorded yet for this case file.</div>
+                                ` : notesList.map(n => `
+                                <div class="bg-cardbg border border-bordercolor rounded-xl p-5 flex items-start justify-between gap-4">
+                                    <div class="space-y-1">
+                                        <div class="text-xs font-mono text-neutral-500">${n.timestamp}</div>
+                                        <p class="text-sm text-neutral-200 whitespace-pre-wrap">${n.text}</p>
+                                    </div>
+                                    <button onclick="app.deleteNote('${n.id}')" class="text-neutral-500 hover:text-red-500 p-2 transition-colors">
+                                        <i class="fa-solid fa-trash-can text-xs"></i>
+                                    </button>
+                                </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        `;
+                }
+            }
+
+            // 4. SUSPECT PROFILE & INTERVIEW MODAL
+            openSuspectModal(suspectId) {
+                const suspects = GAME_DATA.suspects[this.activeCaseId] || [];
+                const suspect = suspects.find(s => s.id === suspectId);
+                if (!suspect) return;
+
+                const html = `
+                <div class="p-6 md:p-8 space-y-6">
+                    <div class="flex items-start justify-between border-b border-neutral-800 pb-4">
+                        <div class="flex items-center space-x-4">
+                            <img src="${suspect.avatar}" alt="${suspect.name}" class="w-16 h-16 rounded-full object-cover border-2 border-red-800">
+                            <div>
+                                <span class="text-xs font-mono text-red-500 uppercase">${suspect.relation}</span>
+                                <h3 class="text-2xl font-bold text-white">${suspect.name}</h3>
+                                <p class="text-xs text-neutral-400 font-mono">${suspect.occupation} • Age ${suspect.age}</p>
+                            </div>
+                        </div>
+                        <button onclick="app.closeModal()" class="text-neutral-400 hover:text-white p-2">
+                            <i class="fa-solid fa-xmark text-lg"></i>
+                        </button>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="bg-neutral-900 p-4 rounded-xl border border-neutral-800 space-y-2">
+                            <h4 class="text-xs font-mono uppercase text-neutral-400 font-bold"><i class="fa-solid fa-shield-halved text-amber-500 mr-2"></i> Verified Alibi</h4>
+                            <p class="text-sm text-neutral-200">${suspect.alibi}</p>
+                        </div>
+
+                        <div class="bg-neutral-900 p-4 rounded-xl border border-neutral-800 space-y-2">
+                            <h4 class="text-xs font-mono uppercase text-neutral-400 font-bold"><i class="fa-solid fa-user-pen text-blue-500 mr-2"></i> Personality Profile</h4>
+                            <p class="text-sm text-neutral-300">${suspect.personality}</p>
+                        </div>
+
+                        <div class="space-y-3">
+                            <h4 class="text-sm font-bold text-white flex items-center space-x-2">
+                                <i class="fa-solid fa-comments text-red-500"></i>
+                                <span>Detective Interview Transcript</span>
+                            </h4>
+                            <div class="space-y-3 max-h-60 overflow-y-auto pr-2">
+                                ${suspect.interviews.map(inv => `
+                                <div class="bg-neutral-900/80 p-4 rounded-xl border border-neutral-800 space-y-2">
+                                    <div class="text-xs font-mono text-neutral-400 font-bold">DETECTIVE: "${inv.q}"</div>
+                                    <div class="text-xs font-mono text-white bg-neutral-800 p-3 rounded border border-neutral-700">${suspect.name}: "${inv.a}"</div>
+                                </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end pt-4 border-t border-neutral-800">
+                        <button onclick="app.closeModal()" class="px-6 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl text-xs font-medium transition-colors">Close Dossier</button>
+                    </div>
+                </div>
+                `;
+                this.openModal(html);
+            }
+
+            // 5. EVIDENCE INSPECT MODAL
+            openEvidenceModal(evidenceId) {
+                const evidenceList = GAME_DATA.evidence[this.activeCaseId] || [];
+                const ev = evidenceList.find(e => e.id === evidenceId);
+                if (!ev) return;
+
+                // Mark examined
+                if (!this.state.examinedEvidence[this.activeCaseId]) {
+                    this.state.examinedEvidence[this.activeCaseId] = [];
+                }
+                if (!this.state.examinedEvidence[this.activeCaseId].includes(evidenceId)) {
+                    this.state.examinedEvidence[this.activeCaseId].push(evidenceId);
+                    this.saveState();
+                }
+
+                const html = `
+                <div class="p-6 md:p-8 space-y-6">
+                    <div class="flex items-center justify-between border-b border-neutral-800 pb-4">
+                        <div>
+                            <span class="text-xs font-mono text-red-500 uppercase font-bold"><i class="fa-solid fa-file-shield mr-1"></i> ${ev.type}</span>
+                            <h3 class="text-2xl font-bold text-white">${ev.title}</h3>
+                        </div>
+                        <button onclick="app.closeModal()" class="text-neutral-400 hover:text-white p-2">
+                            <i class="fa-solid fa-xmark text-lg"></i>
+                        </button>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="bg-neutral-900 p-5 rounded-xl border border-neutral-800 space-y-2">
+                            <h4 class="text-xs font-mono uppercase text-neutral-400 font-bold">Initial Observation</h4>
+                            <p class="text-sm text-neutral-200">${ev.desc}</p>
+                        </div>
+
+                        <div class="bg-neutral-950 p-5 rounded-xl border border-red-900/40 space-y-2">
+                            <h4 class="text-xs font-mono uppercase text-red-500 font-bold"><i class="fa-solid fa-magnifying-glass-plus mr-1"></i> Detailed Forensic Analysis</h4>
+                            <p class="text-sm text-neutral-300 leading-relaxed">${ev.details}</p>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center pt-4 border-t border-neutral-800">
+                        <span class="text-xs font-mono text-emerald-400"><i class="fa-solid fa-check mr-1"></i> Logged in Evidence Locker</span>
+                        <button onclick="app.closeModal(); app.render();" class="px-6 py-2.5 bg-red-800 hover:bg-red-700 text-white rounded-xl text-xs font-medium transition-colors">Done</button>
+                    </div>
+                </div>
+                `;
+                this.openModal(html);
+            }
+
+            discoverClue(clueId) {
+                if (!this.state.discoveredClues[this.activeCaseId]) {
+                    this.state.discoveredClues[this.activeCaseId] = [];
+                }
+                if (!this.state.discoveredClues[this.activeCaseId].includes(clueId)) {
+                    this.state.discoveredClues[this.activeCaseId].push(clueId);
+                    this.saveState();
+                    this.showToast("New clue unlocked and logged!", "success");
+                    this.render();
+                }
+            }
+
+            // Notes Actions
+            addNote() {
+                const textarea = document.getElementById('new-note-text');
+                if (!textarea || !textarea.value.trim()) {
+                    this.showToast("Note text cannot be empty.", "error");
+                    return;
+                }
+
+                if (!this.state.notes[this.activeCaseId]) {
+                    this.state.notes[this.activeCaseId] = [];
+                }
+
+                const newNote = {
+                    id: 'note-' + Date.now(),
+                    text: textarea.value.trim(),
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' - ' + new Date().toLocaleDateString()
+                };
+
+                this.state.notes[this.activeCaseId].unshift(newNote);
+                this.saveState();
+                textarea.value = '';
+                this.render();
+                this.showToast("Observation saved to notes.", "success");
+            }
+
+            deleteNote(noteId) {
+                if (this.state.notes[this.activeCaseId]) {
+                    this.state.notes[this.activeCaseId] = this.state.notes[this.activeCaseId].filter(n => n.id !== noteId);
+                    this.saveState();
+                    this.render();
+                    this.showToast("Note deleted.", "info");
+                }
+            }
+
+            // 11. FINAL ACCUSATION VIEW
+            renderAccusationView() {
+                if (!this.activeCaseId) this.activeCaseId = 'case-001';
+                const caseData = GAME_DATA.cases.find(c => c.id === this.activeCaseId);
+                const suspects = GAME_DATA.suspects[this.activeCaseId] || [];
+                const evidence = GAME_DATA.evidence[this.activeCaseId] || [];
+
+                return `
+                <div class="flex-1 max-w-4xl mx-auto px-4 py-8 space-y-8 animate-fade-in">
+                    <div class="flex items-center justify-between border-b border-bordercolor pb-6">
+                        <div>
+                            <button onclick="app.navigateTo('investigation', '${this.activeCaseId}')" class="text-xs text-neutral-400 hover:text-white mb-2 inline-flex items-center space-x-1">
+                                <i class="fa-solid fa-arrow-left"></i> <span>Return to Investigation</span>
+                            </button>
+                            <h2 class="text-3xl font-bold text-white">Final Accusation</h2>
+                            <p class="text-sm text-neutral-400">Submit your final conclusions for ${caseData.title}.</p>
+                        </div>
+                    </div>
+
+                    <form id="accusation-form" onsubmit="app.submitAccusation(event)" class="space-y-6 bg-cardbg border border-bordercolor rounded-2xl p-6 lg:p-8 shadow-2xl">
+                        <!-- Select Culprit -->
+                        <div class="space-y-3">
+                            <label class="block text-sm font-bold text-white uppercase tracking-wider font-mono">
+                                <i class="fa-solid fa-user-secret text-red-500 mr-2"></i> 1. Identify the Culprit
+                            </label>
+                            <select id="acc-suspect" required class="w-full bg-neutral-900 border border-neutral-700 rounded-xl p-4 text-sm text-white focus:outline-none focus:border-red-600">
+                                <option value="">-- Select Suspect --</option>
+                                ${suspects.map(s => `<option value="${s.id}">${s.name} (${s.occupation})</option>`).join('')}
+                            </select>
+                        </div>
+
+                        <!-- Select Motive -->
+                        <div class="space-y-3">
+                            <label class="block text-sm font-bold text-white uppercase tracking-wider font-mono">
+                                <i class="fa-solid fa-bullseye text-amber-500 mr-2"></i> 2. Establish Motive
+                            </label>
+                            <select id="acc-motive" required class="w-full bg-neutral-900 border border-neutral-700 rounded-xl p-4 text-sm text-white focus:outline-none focus:border-red-600">
+                                <option value="">-- Select Primary Motive --</option>
+                                <option value="Financial desperation due to secret gambling debts.">Financial desperation due to secret gambling debts.</option>
+                                <option value="Corporate espionage and stealing proprietary AI algorithms.">Corporate espionage and stealing proprietary AI algorithms.</option>
+                                <option value="Revenge for stolen research attribution and academic fraud.">Revenge for stolen research attribution and academic fraud.</option>
+                                <option value="Personal grudge and family inheritance dispute.">Personal grudge and family inheritance dispute.</option>
+                                <option value="Random burglary gone wrong.">Random burglary gone wrong.</option>
+                            </select>
+                        </div>
+
+                        <!-- Select Evidence -->
+                        <div class="space-y-3">
+                            <label class="block text-sm font-bold text-white uppercase tracking-wider font-mono">
+                                <i class="fa-solid fa-file-shield text-blue-500 mr-2"></i> 3. Key Decisive Evidence
+                            </label>
+                            <select id="acc-evidence" required class="w-full bg-neutral-900 border border-neutral-700 rounded-xl p-4 text-sm text-white focus:outline-none focus:border-red-600">
+                                <option value="">-- Select Decisive Evidence Item --</option>
+                                ${evidence.map(e => `<option value="${e.id}">${e.title} (${e.type})</option>`).join('')}
+                            </select>
+                        </div>
+
+                        <div class="pt-4 border-t border-neutral-800 flex justify-end">
+                            <button type="submit" class="px-8 py-4 bg-red-800 hover:bg-red-700 text-white font-semibold rounded-xl shadow-lg shadow-red-900/30 transition-all flex items-center space-x-3">
+                                <i class="fa-solid fa-gavel"></i>
+                                <span>Submit Official Accusation</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                `;
+            }
+
+            submitAccusation(e) {
+                e.preventDefault();
+                const suspectId = document.getElementById('acc-suspect').value;
+                const motive = document.getElementById('acc-motive').value;
+                const evidenceId = document.getElementById('acc-evidence').value;
+
+                const caseData = GAME_DATA.cases.find(c => c.id === this.activeCaseId);
+                const isCorrectSuspect = suspectId === caseData.culpritId;
+                const isCorrectEvidence = evidenceId === caseData.correctEvidence;
+
+                // Score calculation
+                const discoveredClues = (this.state.discoveredClues[this.activeCaseId] || []).length;
+                const examinedEvidence = (this.state.examinedEvidence[this.activeCaseId] || []).length;
+                
+                let score = 50;
+                if (isCorrectSuspect) score += 30;
+                if (isCorrectEvidence) score += 20;
+                score += (discoveredClues * 2) + (examinedEvidence * 2);
+                if (score > 100) score = 100;
+
+                let rank = 'C';
+                if (score >= 90) rank = 'S';
+                else if (score >= 75) rank = 'A';
+                else if (score >= 60) rank = 'B';
+
+                // Save solved status
+                if (isCorrectSuspect && !this.state.solvedCases.includes(this.activeCaseId)) {
+                    this.state.solvedCases.push(this.activeCaseId);
+                }
+
+                this.state.solvedDetails[this.activeCaseId] = {
+                    isCorrect: isCorrectSuspect,
+                    score,
+                    rank,
+                    cluesFound: discoveredClues,
+                    evidenceExamined: examinedEvidence,
+                    timeTaken: '18 mins'
+                };
+                this.saveState();
+
+                this.currentView = 'summary';
+                this.render();
+            }
+
+            // 15. SUMMARY & ENDING VIEW
+            renderSummaryView() {
+                const caseData = GAME_DATA.cases.find(c => c.id === this.activeCaseId);
+                const details = this.state.solvedDetails[this.activeCaseId] || { isCorrect: true, score: 95, rank: 'S', cluesFound: 4, evidenceExamined: 8, timeTaken: '18 mins' };
+
+                return `
+                <div class="flex-1 max-w-4xl mx-auto px-4 py-12 space-y-8 animate-fade-in my-auto">
+                    <div class="bg-cardbg border border-bordercolor rounded-3xl p-8 lg:p-12 shadow-2xl text-center space-y-6 relative overflow-hidden">
+                        <div class="absolute inset-0 bg-gradient-to-b from-red-950/20 via-transparent to-transparent pointer-events-none"></div>
+                        
+                        <div class="inline-flex items-center justify-center w-20 h-20 rounded-full ${details.isCorrect ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'} text-3xl mx-auto shadow-xl">
+                            <i class="fa-solid ${details.isCorrect ? 'fa-award' : 'fa-triangle-exclamation'}"></i>
+                        </div>
+
+                        <div class="space-y-2">
+                            <div class="text-xs font-mono text-red-500 font-bold uppercase tracking-widest">${caseData.number} RESOLUTION</div>
+                            <h2 class="text-3xl md:text-5xl font-extrabold text-white">${details.isCorrect ? 'Case Solved Successfully' : 'Cold Case: Culprit Escaped'}</h2>
+                            <p class="text-neutral-400 max-w-lg mx-auto text-sm md:text-base">
+                                ${details.isCorrect ? 'Your deductive reasoning successfully matched the suspect, evidence, and motive.' : 'Your accusation was incorrect. The real culprit remains free.'}
+                            </p>
+                        </div>
+
+                        <!-- Stats Grid -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-6 border-t border-neutral-800 font-mono text-left">
+                            <div class="bg-neutral-900/80 p-4 rounded-xl border border-neutral-800">
+                                <div class="text-xs text-neutral-500 uppercase">Detective Rank</div>
+                                <div class="text-3xl font-extrabold text-amber-500">${details.rank}</div>
+                            </div>
+                            <div class="bg-neutral-900/80 p-4 rounded-xl border border-neutral-800">
+                                <div class="text-xs text-neutral-500 uppercase">Investigation Score</div>
+                                <div class="text-3xl font-extrabold text-white">${details.score}/100</div>
+                            </div>
+                            <div class="bg-neutral-900/80 p-4 rounded-xl border border-neutral-800">
+                                <div class="text-xs text-neutral-500 uppercase">Clues Found</div>
+                                <div class="text-3xl font-extrabold text-emerald-400">${details.cluesFound}</div>
+                            </div>
+                            <div class="bg-neutral-900/80 p-4 rounded-xl border border-neutral-800">
+                                <div class="text-xs text-neutral-500 uppercase">Evidence Checked</div>
+                                <div class="text-3xl font-extrabold text-blue-400">${details.evidenceExamined}</div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
+                            <button onclick="app.navigateTo('case-select')" class="w-full sm:w-auto px-8 py-4 bg-red-800 hover:bg-red-700 text-white font-semibold rounded-xl transition-all flex items-center justify-center space-x-2">
+                                <i class="fa-solid fa-folder-tree"></i>
+                                <span>Return to Case Files</span>
+                            </button>
+                            <button onclick="app.navigateTo('case-select')" class="w-full sm:w-auto px-8 py-4 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-neutral-700 font-semibold rounded-xl transition-all flex items-center justify-center space-x-2">
+                                <i class="fa-solid fa-arrow-right"></i>
+                                <span>Next Case</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+
+            initInvestigationInteractions() {
+                // Hook up any interactive listeners if needed
+            }
+        }
+
+        // Initialize App on DOM Content Loaded
+        let app;
+        window.addEventListener('DOMContentLoaded', () => {
+            app = new MysteryBoxApp();
+            app.init();
+        });
+    </script>
+</body>
+</html>
